@@ -122,8 +122,6 @@ func main() {
 				} else {
 					go el.Move(i)
 				}
-			default:
-				time.Sleep(time.Millisecond * 500)
 			}
 		}
 	}()
