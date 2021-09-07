@@ -26,7 +26,7 @@ func NewServer() *Server {
 
 	apiGroup.POST("/register", server.Controller.UserController().CreateUser)
 	apiGroup.POST("/login", server.Controller.UserController().LogIn)
-	apiGroup.GET("get/users", server.Controller.UserController().GetUsers)
+	apiGroup.GET("/get/users", server.Controller.UserController().GetUsers)
 
 	apiGroup.POST("/create/post", server.Controller.PostController().CreatePost)
 	apiGroup.GET("/get/post/:id", server.Controller.PostController().GetPost)

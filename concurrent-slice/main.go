@@ -9,7 +9,6 @@ import (
 
 func main() {
 	cs := new(c.ConcurrentSlice)
-	
 	wg := new(sync.WaitGroup)
 
 	start := time.Now()

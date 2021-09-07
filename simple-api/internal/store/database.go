@@ -9,6 +9,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
+	"os"
 	"sync"
 )
 
@@ -24,7 +25,9 @@ func GetDB() *Database {
 }
 
 func startDB() *gorm.DB {
-	sqlDB, err := sql.Open("postgres", "postgres://postgres:1234@localhost:5432/simple_api?sslmode=disable")
+	//sqlDB, err := sql.Open("postgres", "postgres://postgres:1234@localhost:5432/simple_api?sslmode=disable")
+	dbUrl := os.Getenv("DB_URL")
+	sqlDB, err := sql.Open("postgres", dbUrl)
 	if err != nil {
 		log.Fatal(err)
 	}

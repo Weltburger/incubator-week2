@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  api:
+    container_name: api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - testnet
+    ports:
+      - "1323:1323"
+    environment:
+      - HTTP_PORT=1323
+      - DB_URL=postgres://postgres:1234@api_db:5432/simple_api?sslmode=disable
+    depends_on:
+      - api_db
+
+  api_db:
+    container_name: postgres_container
+    image: postgres:13.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: simple_api
+      PGDATA: /var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    restart: always
+    networks:
+      - testnet
+    volumes:
+      - database-data:/var/lib/postgresql/data/
+
+volumes:
+  database-data:
+
+networks:
+  testnet:
+    driver: bridge
