@@ -21,6 +21,7 @@ func BenchmarkAppendConcurrentSlice(b *testing.B) {
 	wg.Wait()
 }
 
+
 type testpair struct {
 	iter int
 	size int
@@ -31,6 +32,8 @@ var tests = []testpair{
 	{ 1500, 1500 },
 	{ 10000, 10000 },
 }
+
+
 
 func TestConcurrentSlice(t *testing.T) {
 	for _, pair := range tests {

@@ -6,7 +6,7 @@ import (
 )
 
 type ConcurrentSlice struct {
-	mux   sync.Mutex
+	mux   sync.RWMutex
 	slice []interface{}
 }
 
@@ -27,8 +27,8 @@ func (cs *ConcurrentSlice) Add(val interface{}) {
 }
 
 func (cs *ConcurrentSlice) Get(i int) interface{} {
-	cs.mux.Lock()
-	defer cs.mux.Unlock()
+	cs.mux.RLock()
+	defer cs.mux.RUnlock()
 	return cs.slice[i]
 }
 
@@ -36,8 +36,8 @@ func (cs *ConcurrentSlice) Iter() <-chan ConcurrentSliceItem {
 	c := make(chan ConcurrentSliceItem)
 
 	f := func() {
-		cs.mux.Lock()
-		defer cs.mux.Unlock()
+		cs.mux.RLock()
+		defer cs.mux.RUnlock()
 		for index, value := range cs.slice {
 			c <- ConcurrentSliceItem{index, value}
 		}
