@@ -10,8 +10,8 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o main ./cmd/main.go
+RUN go build -o /usr/local/bin/simple-api ./cmd/main.go
 
 EXPOSE 1323
 
-CMD ["go", "run", "./cmd/main.go" ]
+CMD ["/usr/local/bin/simple-api"]

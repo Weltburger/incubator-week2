@@ -4,6 +4,7 @@ CREATE TABLE ticket (
     "flight_id"         int8 NOT NULL,
     "class_id"          int8 NOT NULL,
     "lunch_id"          int8 NOT NULL,
+    "weight"            int8 NOT NULL,
     "price"             numeric(15,6) not null default 0::numeric
 );
 
@@ -19,7 +20,7 @@ CREATE TABLE flight (
     "id"                 int8 NOT NULL PRIMARY KEY,
     "from"               int8 NOT NULL,
     "to"                 int8 NOT NULL,
-        "date"             date not null
+    "date"               date not null
 );
 
 CREATE TABLE country (
@@ -29,7 +30,7 @@ CREATE TABLE country (
 
 CREATE TABLE city (
     "id"                int8 NOT NULL PRIMARY KEY,
-        "country_id"        int8 NOT NULL,
+    "country_id"        int8 NOT NULL,
     "name"              VARCHAR (100) NOT NULL
 );
 
