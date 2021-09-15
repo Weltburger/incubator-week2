@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -68,6 +69,12 @@ func (el *Elevator) Up(call *Call) {
 				}
 			}
 			el.memoryUp[el.position] = false
+
+			newInnerCall := el.innerCall()
+			if newInnerCall != nil {
+				fmt.Println(newInnerCall)
+				el.innerQueue = append(el.innerQueue, newInnerCall)
+			}
 		}
 		fmt.Println("Moving up. Current floor: ", el.position)
 		time.Sleep(time.Second * 2)
@@ -107,6 +114,12 @@ func (el *Elevator) Down(call *Call) {
 				}
 			}
 			el.memoryDown[el.position] = false
+
+			newInnerCall := el.innerCall()
+			if newInnerCall != nil {
+				fmt.Println(newInnerCall)
+				el.innerQueue = append(el.innerQueue, newInnerCall)
+			}
 		}
 		fmt.Println("Moving down. Current floor: ", el.position)
 		time.Sleep(time.Second * 2)
@@ -180,7 +193,29 @@ func removeItems(arr []*Call, indexes []int) []*Call {
 	return arr
 }
 
+func (el *Elevator) innerCall() *Call{
+	c := new(Call)
+	fmt.Println("Choose the floor")
+	floor := rand.Intn(10) + 1
+	if floor > el.position {
+		c = &Call{
+			floor:   floor,
+			goingUp: 1,
+		}
+	} else if floor < el.position {
+		c = &Call{
+			floor:   floor,
+			goingUp: 0,
+		}
+	} else {
+		fmt.Println("This is your current floor!")
+		c = nil
+	}
+	return c
+}
+
 func main() {
+	rand.Seed(time.Now().UnixNano())
 
 	el := &Elevator{
 		memoryUp:     make(map[int]bool, 0),
@@ -198,32 +233,38 @@ func main() {
 			select {
 			case floor := <-el.ch:
 				arr := strings.Split(floor, " ")
-				f, err := strconv.Atoi(arr[0])
-				b, err := strconv.Atoi(arr[1])
-				if err != nil {
-					fmt.Println(err)
-					continue
-				}
-				c := &Call{
-					floor:   f,
-					goingUp: b,
-				}
-				if el.isMovingUp || el.isMovingDown {
-					if b == 0 {
-						el.memoryDown[f] = true
-					} else {
-						el.memoryUp[f] = true
+				if len(arr) > 1 {
+					f, err := strconv.Atoi(arr[0])
+					if err != nil {
+						fmt.Println(err)
+						continue
 					}
-					el.outerQueue = append(el.outerQueue, c)
-				} else {
-					el.Mutex.Lock()
-					if b == 0 {
-						el.memoryDown[f] = true
-					} else {
-						el.memoryUp[f] = true
+					b, err := strconv.Atoi(arr[1])
+					if err != nil {
+						fmt.Println(err)
+						continue
 					}
-					el.Mutex.Unlock()
-					go el.Move(c)
+					c := &Call{
+						floor:   f,
+						goingUp: b,
+					}
+					if el.isMovingUp || el.isMovingDown {
+						if b == 0 {
+							el.memoryDown[f] = true
+						} else {
+							el.memoryUp[f] = true
+						}
+						el.outerQueue = append(el.outerQueue, c)
+					} else {
+						el.Mutex.Lock()
+						if b == 0 {
+							el.memoryDown[f] = true
+						} else {
+							el.memoryUp[f] = true
+						}
+						el.Mutex.Unlock()
+						go el.Move(c)
+					}
 				}
 			}
 		}
