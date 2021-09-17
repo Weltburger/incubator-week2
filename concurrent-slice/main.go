@@ -23,6 +23,4 @@ func main() {
 	wg.Wait()
 
 	fmt.Println(time.Since(start))
-	//fmt.Println(cs.slice)
-	//fmt.Println(len(cs.slice))
 }

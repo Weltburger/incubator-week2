@@ -11,12 +11,9 @@ import (
 	"time"
 )
 
-// Очередь вызовов (внутренняя и внешняя)
-// Кнопка вызова вверх и вниз
-// Память для очередей вверх и вниз? memory
-
 type Elevator struct {
 	sync.Mutex
+	scanner      *bufio.Scanner
 	memoryUp     map[int]bool
 	memoryDown   map[int]bool
 	innerQueue   []*Call
@@ -24,7 +21,9 @@ type Elevator struct {
 	position     int
 	isMovingUp   bool
 	isMovingDown bool
+	stat         bool
 	ch           chan string
+	inner        chan string
 }
 
 type Call struct {
@@ -70,6 +69,7 @@ func (el *Elevator) Up(call *Call) {
 			}
 			el.memoryUp[el.position] = false
 
+			el.stat = false
 			newInnerCall := el.innerCall()
 			if newInnerCall != nil {
 				fmt.Println(newInnerCall)
@@ -86,6 +86,12 @@ func (el *Elevator) Up(call *Call) {
 	time.Sleep(time.Second * 2)
 	fmt.Println("Door is closing.")
 	el.isMovingUp = false
+	el.stat = false
+	newInnerCall := el.innerCall()
+	if newInnerCall != nil {
+		fmt.Println(newInnerCall)
+		el.innerQueue = append(el.innerQueue, newInnerCall)
+	}
 	if newCall := el.isCalled(); newCall != nil {
 		el.Move(newCall)
 		return
@@ -115,6 +121,7 @@ func (el *Elevator) Down(call *Call) {
 			}
 			el.memoryDown[el.position] = false
 
+			el.stat = false
 			newInnerCall := el.innerCall()
 			if newInnerCall != nil {
 				fmt.Println(newInnerCall)
@@ -125,11 +132,18 @@ func (el *Elevator) Down(call *Call) {
 		time.Sleep(time.Second * 2)
 		el.position--
 	}
+	el.memoryUp[el.position] = false
 	el.memoryDown[el.position] = false
 	fmt.Println("Door is opening. Current floor: ", el.position)
 	time.Sleep(time.Second * 2)
 	fmt.Println("Door is closing.")
 	el.isMovingDown = false
+	el.stat = false
+	newInnerCall := el.innerCall()
+	if newInnerCall != nil {
+		fmt.Println(newInnerCall)
+		el.innerQueue = append(el.innerQueue, newInnerCall)
+	}
 	if newCall := el.isCalled(); newCall != nil {
 		el.Move(newCall)
 		return
@@ -193,41 +207,55 @@ func removeItems(arr []*Call, indexes []int) []*Call {
 	return arr
 }
 
-func (el *Elevator) innerCall() *Call{
+func (el *Elevator) innerCall() *Call {
+	fmt.Println("Choose the floor:")
+	ticker := time.NewTicker(time.Second * 5)
 	c := new(Call)
-	fmt.Println("Choose the floor")
-	floor := rand.Intn(10) + 1
-	if floor > el.position {
-		c = &Call{
-			floor:   floor,
-			goingUp: 1,
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func(c *Call) {
+		defer wg.Done()
+		for !el.stat {
+			select {
+			case str := <- el.inner:
+				i, err := strconv.Atoi(str)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				el.memoryUp[i] = true
+				if i > el.position {
+					c.floor = i
+					c.goingUp = 1
+					el.stat = true
+					break
+				} else if i < el.position {
+					c.floor = i
+					c.goingUp = 0
+					el.stat = true
+					break
+				} else {
+					fmt.Println("This is your current floor!")
+					c = nil
+					el.stat = true
+					break
+				}
+			case t := <-ticker.C:
+				fmt.Println("Time is up", t)
+				c = nil
+				el.stat = true
+				break
+			}
 		}
-	} else if floor < el.position {
-		c = &Call{
-			floor:   floor,
-			goingUp: 0,
-		}
-	} else {
-		fmt.Println("This is your current floor!")
-		c = nil
+	}(c)
+	wg.Wait()
+	if c.floor > 0 {
+		return c
 	}
-	return c
+	return nil
 }
 
-func main() {
-	rand.Seed(time.Now().UnixNano())
-
-	el := &Elevator{
-		memoryUp:     make(map[int]bool, 0),
-		memoryDown:   make(map[int]bool, 0),
-		innerQueue:   make([]*Call, 0),
-		outerQueue:   make([]*Call, 0),
-		position:     1,
-		isMovingUp:   false,
-		isMovingDown: false,
-		ch:           make(chan string, 10),
-	}
-
+func (el *Elevator) launch() {
 	go func() {
 		for {
 			select {
@@ -269,9 +297,33 @@ func main() {
 			}
 		}
 	}()
+}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		el.ch <- scanner.Text()
+func main() {
+	rand.Seed(time.Now().UnixNano())
+
+	el := &Elevator{
+		scanner: bufio.NewScanner(os.Stdin),
+		memoryUp:     make(map[int]bool, 0),
+		memoryDown:   make(map[int]bool, 0),
+		innerQueue:   make([]*Call, 0),
+		outerQueue:   make([]*Call, 0),
+		position:     1,
+		isMovingUp:   false,
+		isMovingDown: false,
+		stat:         true,
+		ch:           make(chan string, 10),
+		inner:        make(chan string, 10),
+	}
+
+	go el.launch()
+
+	for el.scanner.Scan() {
+		if el.stat {
+			el.ch <- el.scanner.Text()
+		} else {
+			el.inner <-el.scanner.Text()
+		}
+
 	}
 }
