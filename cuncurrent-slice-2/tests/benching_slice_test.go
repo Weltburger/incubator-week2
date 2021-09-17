@@ -49,7 +49,6 @@ func TestConcurrentSlice(t *testing.T) {
 			}(i)
 		}
 		slice.WaitGroup.Wait()
-		time.Sleep(time.Second*2)
 		if slice.Len() != pair.size {
 			t.Error(
 				"For", pair.iter,
