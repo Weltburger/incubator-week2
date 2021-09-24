@@ -12,13 +12,10 @@ import (
 type Elevator struct {
 	sync.Mutex
 	Scanner      *bufio.Scanner
-	MemoryUp     map[int]bool
-	MemoryDown   map[int]bool
 	InnerQueue   []*Call
 	OuterQueue   []*Call
 	Position     int
-	IsMovingUp   bool
-	IsMovingDown bool
+	IsMoving     bool
 	Stat         bool
 	Ch           chan string
 	Inner        chan string
@@ -29,65 +26,28 @@ type Call struct {
 	GoingUp int
 }
 
-func (el *Elevator) clearingUp() {
-	queue1 := findIndexesUp(el.InnerQueue, el.Position)
-	queue2 := findIndexesUp(el.OuterQueue, el.Position)
-	if len(queue1) != 0 || len(queue2) != 0 {
-		fmt.Println("Door is opening. Current Floor: ", el.Position)
-		time.Sleep(time.Second * 2)
-		fmt.Println("Door is closing")
-		time.Sleep(time.Second * 2)
-		if len(queue1) != 0 {
-			el.InnerQueue = removeItems(el.InnerQueue, queue1)
-		}
-		if len(queue2) != 0 {
-			el.OuterQueue = removeItems(el.OuterQueue, queue2)
-		}
-	}
+func (el *Elevator) clearing(state int) bool {
+	queue1, queue2 := false, false
+	el.InnerQueue, queue1 = findAndDeleteIndexes(el.InnerQueue, el.Position, state)
+	el.OuterQueue, queue2 = findAndDeleteIndexes(el.OuterQueue, el.Position, state)
+
+	return queue1 || queue2
 }
 
-func (el *Elevator) clearingDown() {
-	queue1 := findIndexesDown(el.InnerQueue, el.Position)
-	queue2 := findIndexesDown(el.OuterQueue, el.Position)
-	if len(queue1) != 0 || len(queue2) != 0 {
-		fmt.Println("Door is opening. Current Floor: ", el.Position)
-		time.Sleep(time.Second * 2)
-		fmt.Println("Door is closing")
-		time.Sleep(time.Second * 2)
-		if len(queue1) != 0 {
-			el.InnerQueue = removeItems(el.InnerQueue, queue1)
-		}
-		if len(queue2) != 0 {
-			el.OuterQueue = removeItems(el.OuterQueue, queue2)
-		}
-	}
+func (el *Elevator) openCloseMessage() {
+	fmt.Println("Door is opening. Current Floor: ", el.Position)
+	time.Sleep(time.Second * 2)
+	fmt.Println("Door is closing")
+	time.Sleep(time.Second * 2)
 }
 
-func (el *Elevator) Move(call *Call) {
-	if el.Position == call.Floor {
-		fmt.Println("This is your current Position. Floor: ", el.Position)
-		el.MemoryUp[el.Position] = false
-		el.MemoryDown[el.Position] = false
-		if newCall := el.isCalled(); newCall != nil {
-			el.Move(newCall)
-			return
-		}
-	} else if call.Floor < el.Position {
-		el.Down(call)
-	} else {
-		el.Up(call)
-	}
-}
-
-func (el *Elevator) Up(call *Call) {
-	el.IsMovingDown = false
-	el.IsMovingUp = true
+func (el *Elevator) Move(call *Call, way int) {
+	el.IsMoving = true
 	f := call.Floor
 	for el.Position != f {
-		if el.MemoryUp[el.Position] {
-			el.clearingUp()
-
-			el.MemoryUp[el.Position] = false
+		fmt.Println(way)
+		if el.clearing(way) {
+			el.openCloseMessage()
 			el.Stat = false
 			newInnerCall := el.innerCall()
 			if newInnerCall != nil {
@@ -95,27 +55,19 @@ func (el *Elevator) Up(call *Call) {
 				el.InnerQueue = append(el.InnerQueue, newInnerCall)
 			}
 		}
-		fmt.Println("Moving up. Current Floor: ", el.Position)
+		fmt.Println("Moving. Current Floor: ", el.Position)
 		time.Sleep(time.Second * 2)
-		el.Position++
-	}
-	el.MemoryUp[el.Position] = false
-	el.MemoryDown[el.Position] = false
-	queue1 := findIndexesUp(el.InnerQueue, el.Position)
-	queue2 := findIndexesUp(el.OuterQueue, el.Position)
-	if len(queue1) != 0 || len(queue2) != 0 {
-		if len(queue1) != 0 {
-			el.InnerQueue = removeItems(el.InnerQueue, queue1)
-		}
-		if len(queue2) != 0 {
-			el.OuterQueue = removeItems(el.OuterQueue, queue2)
+		if way == 1 {
+			el.Position++
+		} else {
+			el.Position--
 		}
 	}
 
-	fmt.Println("Door is opening. Current Floor: ", el.Position)
-	time.Sleep(time.Second * 2)
-	fmt.Println("Door is closing.")
-	el.IsMovingUp = false
+	el.clearing(way)
+	el.openCloseMessage()
+
+	el.IsMoving = false
 	el.Stat = false
 	newInnerCall := el.innerCall()
 	if newInnerCall != nil {
@@ -123,57 +75,11 @@ func (el *Elevator) Up(call *Call) {
 		el.InnerQueue = append(el.InnerQueue, newInnerCall)
 	}
 	if newCall := el.isCalled(); newCall != nil {
-		el.Move(newCall)
-		return
-	}
-	fmt.Println("Done. Current Floor: ", el.Position)
-}
-
-func (el *Elevator) Down(call *Call) {
-	el.IsMovingUp = false
-	el.IsMovingDown = true
-	f := call.Floor
-	for el.Position != f {
-		if el.MemoryDown[el.Position] {
-			el.clearingDown()
-
-			el.MemoryDown[el.Position] = false
-			el.Stat = false
-			newInnerCall := el.innerCall()
-			if newInnerCall != nil {
-				fmt.Println(newInnerCall)
-				el.InnerQueue = append(el.InnerQueue, newInnerCall)
-			}
+		if newCall.Floor > el.Position {
+			el.Move(newCall, 1)
+		} else {
+			el.Move(newCall, 0)
 		}
-		fmt.Println("Moving down. Current Floor: ", el.Position)
-		time.Sleep(time.Second * 2)
-		el.Position--
-	}
-	el.MemoryUp[el.Position] = false
-	el.MemoryDown[el.Position] = false
-	queue1 := findIndexesDown(el.InnerQueue, el.Position)
-	queue2 := findIndexesDown(el.OuterQueue, el.Position)
-	if len(queue1) != 0 || len(queue2) != 0 {
-		if len(queue1) != 0 {
-			el.InnerQueue = removeItems(el.InnerQueue, queue1)
-		}
-		if len(queue2) != 0 {
-			el.OuterQueue = removeItems(el.OuterQueue, queue2)
-		}
-	}
-
-	fmt.Println("Door is opening. Current Floor: ", el.Position)
-	time.Sleep(time.Second * 2)
-	fmt.Println("Door is closing.")
-	el.IsMovingDown = false
-	el.Stat = false
-	newInnerCall := el.innerCall()
-	if newInnerCall != nil {
-		fmt.Println(newInnerCall)
-		el.InnerQueue = append(el.InnerQueue, newInnerCall)
-	}
-	if newCall := el.isCalled(); newCall != nil {
-		el.Move(newCall)
 		return
 	}
 	fmt.Println("Done. Current Floor: ", el.Position)
@@ -193,46 +99,30 @@ func (el *Elevator) isCalled() *Call {
 	return nil
 }
 
-func findIndexesUp(arr []*Call, n int) []int {
+func findAndDeleteIndexes(arr []*Call, n, state int) ([]*Call, bool) {
 	res := make([]int, 0)
+	isNEmpty := false
 	dec := 0
 	for i, v := range arr {
 		if v.Floor == n {
-			if v.GoingUp == 1 {
+			if v.GoingUp == state {
 				res = append(res, i-dec)
 				dec++
+				isNEmpty = true
 			}
 		}
 	}
-	return res
-}
 
-func findIndexesDown(arr []*Call, n int) []int {
-	res := make([]int, 0)
-	dec := 0
-	for i, v := range arr {
-		if v.Floor == n {
-			if v.GoingUp == 0 {
-				res = append(res, i-dec)
-				dec++
-			}
-		}
-	}
-	return res
-}
-
-func removeItems(arr []*Call, indexes []int) []*Call {
-	if len(indexes) != 0 {
-		for _, v := range indexes {
+	if len(res) != 0 {
+		for _, v := range res {
 			if v == len(arr)-1 {
 				arr = arr[:v]
 			} else {
 				arr = append(arr[:v], arr[v+1:]...)
 			}
 		}
-		return arr
 	}
-	return arr
+	return arr, isNEmpty
 }
 
 func (el *Elevator) innerCall() *Call {
@@ -251,7 +141,6 @@ func (el *Elevator) innerCall() *Call {
 					fmt.Println(err)
 					continue
 				}
-				el.MemoryUp[i] = true
 				if i > el.Position {
 					c.Floor = i
 					c.GoingUp = 1
@@ -304,22 +193,14 @@ func (el *Elevator) Launch() {
 						Floor:   f,
 						GoingUp: b,
 					}
-					if el.IsMovingUp || el.IsMovingDown {
-						if b == 0 {
-							el.MemoryDown[f] = true
-						} else {
-							el.MemoryUp[f] = true
-						}
+					if el.IsMoving {
 						el.OuterQueue = append(el.OuterQueue, c)
 					} else {
-						el.Mutex.Lock()
-						if b == 0 {
-							el.MemoryDown[f] = true
+						if c.Floor > el.Position {
+							go el.Move(c, 1)
 						} else {
-							el.MemoryUp[f] = true
+							go el.Move(c, 0)
 						}
-						el.Mutex.Unlock()
-						go el.Move(c)
 					}
 				}
 			}

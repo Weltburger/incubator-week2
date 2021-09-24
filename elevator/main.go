@@ -13,13 +13,10 @@ func main() {
 
 	el := &elevator.Elevator{
 		Scanner:      bufio.NewScanner(os.Stdin),
-		MemoryUp:     make(map[int]bool, 0),
-		MemoryDown:   make(map[int]bool, 0),
 		InnerQueue:   make([]*elevator.Call, 0),
 		OuterQueue:   make([]*elevator.Call, 0),
 		Position:     1,
-		IsMovingUp:   false,
-		IsMovingDown: false,
+		IsMoving:     false,
 		Stat:         true,
 		Ch:           make(chan string, 10),
 		Inner:        make(chan string, 10),
