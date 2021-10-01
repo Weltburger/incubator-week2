@@ -28,8 +28,10 @@ type Call struct {
 
 func (el *Elevator) clearing(state int) bool {
 	queue1, queue2 := false, false
+	el.Mutex.Lock()
 	el.InnerQueue, queue1 = findAndDeleteIndexes(el.InnerQueue, el.Position, state)
 	el.OuterQueue, queue2 = findAndDeleteIndexes(el.OuterQueue, el.Position, state)
+	el.Mutex.Unlock()
 
 	return queue1 || queue2
 }
@@ -41,11 +43,17 @@ func (el *Elevator) openCloseMessage() {
 	time.Sleep(time.Second * 2)
 }
 
-func (el *Elevator) Move(call *Call, way int) {
+func (el *Elevator) Move(call *Call) {
+	var way int
+	if el.Position > call.Floor {
+		way = 0
+	} else {
+		way = 1
+	}
+
 	el.IsMoving = true
 	f := call.Floor
 	for el.Position != f {
-		fmt.Println(way)
 		if el.clearing(way) {
 			el.openCloseMessage()
 			el.Stat = false
@@ -75,11 +83,7 @@ func (el *Elevator) Move(call *Call, way int) {
 		el.InnerQueue = append(el.InnerQueue, newInnerCall)
 	}
 	if newCall := el.isCalled(); newCall != nil {
-		if newCall.Floor > el.Position {
-			el.Move(newCall, 1)
-		} else {
-			el.Move(newCall, 0)
-		}
+		el.Move(newCall)
 		return
 	}
 	fmt.Println("Done. Current Floor: ", el.Position)
@@ -129,44 +133,33 @@ func (el *Elevator) innerCall() *Call {
 	fmt.Println("Choose the Floor:")
 	ticker := time.NewTicker(time.Second * 5)
 	c := new(Call)
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func(c *Call) {
-		defer wg.Done()
-		for !el.Stat {
-			select {
-			case str := <-el.Inner:
-				i, err := strconv.Atoi(str)
-				if err != nil {
-					fmt.Println(err)
-					continue
-				}
-				if i > el.Position {
-					c.Floor = i
-					c.GoingUp = 1
-					el.Stat = true
-					break
-				} else if i < el.Position {
-					c.Floor = i
-					c.GoingUp = 0
-					el.Stat = true
-					break
-				} else {
-					fmt.Println("This is your current Floor!")
-					c = nil
-					el.Stat = true
-					break
-				}
-			case t := <-ticker.C:
-				fmt.Println("Time is up", t)
+	for !el.Stat {
+		select {
+		case str := <-el.Inner:
+			i, err := strconv.Atoi(str)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			if i == el.Position {
+				fmt.Println("This is your current Floor!")
 				c = nil
 				el.Stat = true
 				break
+			} else {
+				c.Floor = i
+				el.Stat = true
+				break
 			}
+		case t := <-ticker.C:
+			fmt.Println("Time is up", t)
+			c = nil
+			el.Stat = true
+			break
 		}
-	}(c)
-	wg.Wait()
-	if c.Floor > 0 {
+	}
+
+	if c != nil {
 		return c
 	}
 	return nil
@@ -194,13 +187,11 @@ func (el *Elevator) Launch() {
 						GoingUp: b,
 					}
 					if el.IsMoving {
+						el.Mutex.Lock()
 						el.OuterQueue = append(el.OuterQueue, c)
+						el.Mutex.Unlock()
 					} else {
-						if c.Floor > el.Position {
-							go el.Move(c, 1)
-						} else {
-							go el.Move(c, 0)
-						}
+						go el.Move(c)
 					}
 				}
 			}

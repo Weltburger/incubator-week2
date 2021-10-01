@@ -3,14 +3,12 @@ package main
 import (
 	"bufio"
 	"elevator/elevator"
-	"math/rand"
 	"os"
-	"time"
+	"sync"
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
+	var once sync.Once
 	el := &elevator.Elevator{
 		Scanner:      bufio.NewScanner(os.Stdin),
 		InnerQueue:   make([]*elevator.Call, 0),
@@ -22,7 +20,7 @@ func main() {
 		Inner:        make(chan string, 10),
 	}
 
-	go el.Launch()
+	once.Do(el.Launch)
 
 	for el.Scanner.Scan() {
 		if el.Stat {
