@@ -15,18 +15,18 @@ type testData struct {
 
 var tests = []testData{
 	{
-		[]*elevator.Call{{7, 1}, {3,0}, {2,1}},
-		[]*elevator.Call{{6,1}, {5,0}},
+		[]*elevator.Call{{7, true}, {3,false}, {2,true}},
+		[]*elevator.Call{{6,true}, {5,false}},
 		3,
 	},
 	{
-		[]*elevator.Call{{7, 1}, {3,0}, {2,1}},
-		[]*elevator.Call{{10,1}, {2,0}, {4,1}, {5,0}},
+		[]*elevator.Call{{7, true}, {3,false}, {2,true}},
+		[]*elevator.Call{{10,true}, {2,false}, {4,true}, {5,false}},
 		2,
 	},
 	{
-		[]*elevator.Call{{3, 1}, {5,1}, {4, 0}, {1,0}, {8, 1}},
-		[]*elevator.Call{{9,1}, {6,0}, {3,1}, {5,0}},
+		[]*elevator.Call{{3, true}, {5,true}, {4, false}, {1,false}, {8, true}},
+		[]*elevator.Call{{9,true}, {6,false}, {3,true}, {5,false}},
 		6,
 	},
 }
@@ -47,8 +47,8 @@ func TestElevator(t *testing.T) {
 		el.OuterQueue = data.outerQueue
 		el.Move(&elevator.Call{
 			Floor:   1,
-			GoingUp: 0,
-		}, 0)
+			GoingUp: false,
+		})
 
 		if el.Position != data.position {
 			t.Error(

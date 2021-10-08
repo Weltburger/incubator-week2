@@ -3,6 +3,7 @@ package elevator
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 type Elevator struct {
 	sync.Mutex
+	sync.Once
 	Scanner      *bufio.Scanner
 	InnerQueue   []*Call
 	OuterQueue   []*Call
@@ -23,10 +25,10 @@ type Elevator struct {
 
 type Call struct {
 	Floor   int
-	GoingUp int
+	GoingUp bool
 }
 
-func (el *Elevator) clearing(state int) bool {
+func (el *Elevator) clearing(state bool) bool {
 	queue1, queue2 := false, false
 	el.Mutex.Lock()
 	el.InnerQueue, queue1 = findAndDeleteIndexes(el.InnerQueue, el.Position, state)
@@ -44,11 +46,11 @@ func (el *Elevator) openCloseMessage() {
 }
 
 func (el *Elevator) Move(call *Call) {
-	var way int
+	var way bool
 	if el.Position > call.Floor {
-		way = 0
+		way = false
 	} else {
-		way = 1
+		way = true
 	}
 
 	el.IsMoving = true
@@ -60,12 +62,14 @@ func (el *Elevator) Move(call *Call) {
 			newInnerCall := el.innerCall()
 			if newInnerCall != nil {
 				fmt.Println(newInnerCall)
+				el.Mutex.Lock()
 				el.InnerQueue = append(el.InnerQueue, newInnerCall)
+				el.Mutex.Unlock()
 			}
 		}
 		fmt.Println("Moving. Current Floor: ", el.Position)
 		time.Sleep(time.Second * 2)
-		if way == 1 {
+		if way {
 			el.Position++
 		} else {
 			el.Position--
@@ -80,7 +84,9 @@ func (el *Elevator) Move(call *Call) {
 	newInnerCall := el.innerCall()
 	if newInnerCall != nil {
 		fmt.Println(newInnerCall)
+		el.Mutex.Lock()
 		el.InnerQueue = append(el.InnerQueue, newInnerCall)
+		el.Mutex.Unlock()
 	}
 	if newCall := el.isCalled(); newCall != nil {
 		el.Move(newCall)
@@ -103,7 +109,7 @@ func (el *Elevator) isCalled() *Call {
 	return nil
 }
 
-func findAndDeleteIndexes(arr []*Call, n, state int) ([]*Call, bool) {
+func findAndDeleteIndexes(arr []*Call, n int, state bool) ([]*Call, bool) {
 	res := make([]int, 0)
 	isNEmpty := false
 	dec := 0
@@ -166,35 +172,56 @@ func (el *Elevator) innerCall() *Call {
 }
 
 func (el *Elevator) Launch() {
-	go func() {
-		for {
-			select {
-			case floor := <-el.Ch:
-				arr := strings.Split(floor, " ")
-				if len(arr) > 1 {
-					f, err := strconv.Atoi(arr[0])
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					b, err := strconv.Atoi(arr[1])
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					c := &Call{
-						Floor:   f,
-						GoingUp: b,
-					}
-					if el.IsMoving {
-						el.Mutex.Lock()
-						el.OuterQueue = append(el.OuterQueue, c)
-						el.Mutex.Unlock()
-					} else {
-						go el.Move(c)
+	el.Do(func() {
+		go func() {
+			for {
+				select {
+				case floor := <-el.Ch:
+					arr := strings.Split(floor, " ")
+					if len(arr) > 1 {
+						f, err := strconv.Atoi(arr[0])
+						if err != nil {
+							fmt.Println(err)
+							continue
+						}
+						var state bool
+						b, err := strconv.Atoi(arr[1])
+						if err != nil {
+							fmt.Println(err)
+							continue
+						}
+						if b == 0 {
+							state = false
+						} else {
+							state = true
+						}
+						c := &Call{
+							Floor:   f,
+							GoingUp: state,
+						}
+						if el.IsMoving {
+							el.Mutex.Lock()
+							el.OuterQueue = append(el.OuterQueue, c)
+							el.Mutex.Unlock()
+						} else {
+							go el.Move(c)
+						}
 					}
 				}
 			}
-		}
-	}()
+		}()
+	})
+}
+
+func Construct() *Elevator {
+	return &Elevator{
+		Scanner:      bufio.NewScanner(os.Stdin),
+		InnerQueue:   make([]*Call, 0),
+		OuterQueue:   make([]*Call, 0),
+		Position:     1,
+		IsMoving:     false,
+		Stat:         true,
+		Ch:           make(chan string, 10),
+		Inner:        make(chan string, 10),
+	}
 }
